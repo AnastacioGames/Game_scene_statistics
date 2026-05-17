@@ -69,7 +69,13 @@ class GAME_STATS_OT_update(bpy.types.Operator):
             # Evita imagens vazias ou render results
             if img.type == 'IMAGE' and img.size[0] > 0 and img.size[1] > 0:
                 image_count += 1
-                tex_memory_bytes += (img.size[0] * img.size[1] * 4) # 4 bytes por pixel (RGBA)
+                if img.filepath.lower().endswith('.dds'):
+                    bpp = 1 # Arquivos DDS compactados
+                else:
+                    # Verifica RGB (3 bytes) ou RGBA (4 bytes) para JPG, PNG, etc.
+                    bpp = (img.depth // 8) if getattr(img, "depth", 0) > 0 else 4
+                    
+                tex_memory_bytes += (img.size[0] * img.size[1] * bpp)
 
         for obj in scene.objects:
             # Verifica se o objeto está visível em qualquer uma das camadas ativas no momento
@@ -153,7 +159,11 @@ class GAME_STATS_OT_update(bpy.types.Operator):
         # Calcula VRAM apenas das imagens usadas nos layers ativos
         for img in l_images_set:
             l_image_count += 1
-            l_tex_memory_bytes += (img.size[0] * img.size[1] * 4)
+            if img.filepath.lower().endswith('.dds'):
+                bpp = 1
+            else:
+                bpp = (img.depth // 8) if getattr(img, "depth", 0) > 0 else 4
+            l_tex_memory_bytes += (img.size[0] * img.size[1] * bpp)
 
         # Salva na Cena para não recalcular toda vez
         scene.stats_global_objs = objs
@@ -278,7 +288,14 @@ class GAME_STATS_PT_panel(bpy.types.Panel):
                                         img_set.add(img)
                     
                     img_count = len(img_set)
-                    vram_mb = sum((img.size[0] * img.size[1] * 4) for img in img_set) / (1024 * 1024)
+                    
+                    vram_mb = 0
+                    for img in img_set:
+                        if img.filepath.lower().endswith('.dds'):
+                            vram_mb += (img.size[0] * img.size[1] * 1)
+                        else:
+                            vram_mb += (img.size[0] * img.size[1] * ((img.depth // 8) if getattr(img, "depth", 0) > 0 else 4))
+                    vram_mb /= (1024 * 1024)
                     
                     col_gpu_obj.label(text=f"Vertices: {verts}", icon='VERTEXSEL')
                     col_gpu_obj.label(text=f"Faces: {faces}", icon='FACESEL')
